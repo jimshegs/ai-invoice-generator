@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+env/
+venv/
+
+# Flask / invoices
+# user-uploaded logos
+static/uploads/  
+
+# SQLite database
+invoice_data.sqlite      
+
+# generated PDFs
+*.pdf                    
+
+# Secrets & config
+.env
+openai_key.txt
+
+# Node / Playwright cache (if any)
+node_modules/
+
+# IDE / OS
+.vscode/
+.DS_Store

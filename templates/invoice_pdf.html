@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Invoice {{ invoice_no }}</title>
+<style>
+  /* Modern Professional Invoice - Optimized for PDF Pagination */
+  @page {
+    size: A4;
+    margin: 0;
+  }
+  
+  * {
+    box-sizing: border-box;
+  }
+  
+  body {
+    font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
+    font-size: 11pt;
+    line-height: 1.4;
+    color: #2c3e50;
+    margin: 0;
+    padding: 0;
+    background: white;
+  }
+  
+  .invoice-container {
+    width: 210mm;
+    margin: 0 auto;
+    background: white;
+    position: relative;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+  
+  /* Stunning Header with Gradient */
+  .header {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 30px 40px;
+    position: relative;
+    overflow: hidden;
+    flex-shrink: 0;
+  }
+  
+  .header::before {
+    content: '';
+    position: absolute;
+    top: -50px;
+    right: -50px;
+    width: 150px;
+    height: 150px;
+    background: rgba(255,255,255,0.1);
+    border-radius: 50%;
+  }
+  
+  .header::after {
+    content: '';
+    position: absolute;
+    bottom: -30px;
+    left: -30px;
+    width: 120px;
+    height: 120px;
+    background: rgba(255,255,255,0.05);
+    border-radius: 50%;
+  }
+  
+  .header-content {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    position: relative;
+    z-index: 2;
+  }
+  
+  .company-info h1 {
+    font-size: 28pt;
+    font-weight: 300;
+    margin: 0 0 6px 0;
+    letter-spacing: -0.5px;
+  }
+  
+  .company-tagline {
+    font-size: 11pt;
+    opacity: 0.9;
+    margin: 0 0 16px 0;
+    font-weight: 300;
+  }
+  
+  .company-address {
+    font-size: 9pt;
+    line-height: 1.5;
+    opacity: 0.95;
+  }
+  
+  .invoice-meta {
+    text-align: right;
+    background: rgba(255,255,255,0.15);
+    padding: 20px;
+    border-radius: 10px;
+    backdrop-filter: blur(10px);
+    min-width: 220px;
+  }
+  
+  .invoice-meta h2 {
+    font-size: 18pt;
+    margin: 0 0 12px 0;
+    font-weight: 400;
+  }
+  
+  .invoice-number {
+    font-size: 12pt;
+    font-weight: 600;
+    margin-bottom: 10px;
+  }
+  
+  .invoice-dates {
+    font-size: 9pt;
+    line-height: 1.6;
+    opacity: 0.95;
+  }
+  
+  /* Main Content - Flexible for pagination */
+  .main-content {
+    flex: 1;
+    padding: 30px 40px;
+    display: flex;
+    flex-direction: column;
+  }
+  
+  /* Compact Client Section */
+  .client-section {
+    margin-bottom: 25px;
+    background: linear-gradient(135deg, #f8f9fb 0%, #e8ecf0 100%);
+    padding: 20px;
+    border-radius: 10px;
+    border-left: 4px solid #667eea;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+    flex-shrink: 0;
+  }
+  
+  .client-section h3 {
+    color: #667eea;
+    font-size: 10pt;
+    margin: 0 0 10px 0;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+  }
+  
+  .client-name {
+    font-size: 14pt;
+    font-weight: 600;
+    color: #2c3e50;
+    margin-bottom: 6px;
+  }
+  
+  .client-address {
+    font-size: 10pt;
+    color: #5a6c7d;
+    line-height: 1.4;
+  }
+  
+  /* Items Section - Flexible for pagination */
+  .items-section {
+    flex: 1;
+    margin-bottom: 20px;
+  }
+  
+  .items-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    border-radius: 10px;
+    overflow: hidden;
+    box-shadow: 0 3px 15px rgba(0,0,0,0.06);
+    page-break-inside: auto;
+  }
+  
+  .items-table thead th {
+    background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
+    color: white;
+    padding: 16px 12px;
+    font-weight: 600;
+    font-size: 10pt;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+  }
+  
+  .items-table thead th:first-child {
+    text-align: left;
+  }
+  
+  .items-table thead th:not(:first-child) {
+    text-align: right;
+  }
+  
+  .items-table tbody td {
+    padding: 14px 12px;
+    border-bottom: 1px solid #e8ecf0;
+    background: white;
+    font-size: 10pt;
+    page-break-inside: avoid;
+  }
+  
+  .items-table tbody tr:nth-child(even) {
+    background: #fafbfc;
+  }
+  
+  .items-table tbody tr:last-child td {
+    border-bottom: none;
+  }
+  
+  /* Page break handling for long tables */
+  .items-table thead {
+    display: table-header-group;
+  }
+  
+  .items-table tbody {
+    display: table-row-group;
+  }
+  
+  .desc-cell {
+    font-weight: 500;
+    color: #2c3e50;
+    word-wrap: break-word;
+    max-width: 300px;
+  }
+  
+  .number-cell {
+    text-align: right;
+    color: #5a6c7d;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+  
+  /* Totals Section - Fixed at bottom */
+  .totals-wrapper {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: auto;
+    margin-bottom: 20px;
+    flex-shrink: 0;
+  }
+  
+  .totals-table {
+    min-width: 280px;
+    border-collapse: separate;
+    border-spacing: 0;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+  }
+  
+  .totals-table td {
+    padding: 12px 16px;
+    font-size: 11pt;
+  }
+  
+  .totals-table .label-cell {
+    text-align: right;
+    color: #5a6c7d;
+    font-weight: 500;
+    background: #f8f9fb;
+    border-right: 1px solid #e8ecf0;
+  }
+  
+  .totals-table .amount-cell {
+    text-align: right;
+    font-weight: 600;
+    color: #2c3e50;
+    background: #f8f9fb;
+    font-variant-numeric: tabular-nums;
+    min-width: 100px;
+  }
+  
+  .totals-table .subtotal-row td {
+    border-top: 1px solid #e8ecf0;
+  }
+  
+  .totals-table .total-row .label-cell,
+  .totals-table .total-row .amount-cell {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    font-size: 12pt;
+    font-weight: 700;
+    border: none;
+  }
+  
+  /* Payment Section - Compact */
+  .payment-section {
+    background: linear-gradient(135deg, #f8f9fb 0%, #e8ecf0 100%);
+    padding: 20px;
+    border-radius: 10px;
+    border: 1px solid #e8ecf0;
+    margin-bottom: 20px;
+    flex-shrink: 0;
+    page-break-inside: avoid;
+  }
+  
+  .payment-section h4 {
+    color: #667eea;
+    font-size: 10pt;
+    margin: 0 0 12px 0;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+  }
+  
+  .payment-terms {
+    font-size: 10pt;
+    color: #2c3e50;
+    line-height: 1.5;
+  }
+  
+  /* Footer - Not absolutely positioned */
+  .footer {
+    background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
+    color: white;
+    padding: 20px 40px;
+    text-align: center;
+    margin-top: auto;
+    flex-shrink: 0;
+  }
+  
+  .footer p {
+    margin: 0;
+    font-size: 10pt;
+    opacity: 0.9;
+  }
+  
+  .footer-accent {
+    width: 60px;
+    height: 3px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    margin: 12px auto 0;
+    border-radius: 2px;
+  }
+  
+  /* Page break utilities */
+  .page-break-before {
+    page-break-before: always;
+  }
+  
+  .page-break-after {
+    page-break-after: always;
+  }
+  
+  .page-break-avoid {
+    page-break-inside: avoid;
+  }
+  
+  /* Ensure proper pagination */
+  @media print {
+    .invoice-container {
+      box-shadow: none;
+      min-height: auto;
+    }
+    
+    .items-table {
+      page-break-inside: auto;
+    }
+    
+    .items-table tr {
+      page-break-inside: avoid;
+    }
+    
+    .totals-wrapper {
+      page-break-inside: avoid;
+    }
+    
+    .payment-section {
+      page-break-inside: avoid;
+    }
+    
+    .footer {
+      page-break-inside: avoid;
+    }
+  }
+  
+  /* Column widths for consistent layout */
+  .col-desc { width: 50%; }
+  .col-qty { width: 12%; }
+  .col-unit { width: 19%; }
+  .col-total { width: 19%; }
+</style>
+</head>
+
+<body>
+<div class="invoice-container">
+  
+  <!-- Header -->
+  <div class="header">
+    <div class="header-content">
+      <div class="company-info">
+        <h1>{{ sender or "Your Company" }}</h1>
+        <p class="company-tagline">Professional Services</p>
+        <div class="company-address">
+          {{ sender_address|replace('\n','<br>')|safe if sender_address else "Your Business Address<br>City, State ZIP<br>Country" }}
+        </div>
+      </div>
+      
+      <div class="invoice-meta">
+        <h2>INVOICE</h2>
+        <div class="invoice-number"># {{ invoice_no }}</div>
+        <div class="invoice-dates">
+          <div><strong>Date:</strong> {{ invoice_date }}</div>
+          {% if due_date %}
+          <div><strong>Due:</strong> {{ due_date }}</div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main Content -->
+  <div class="main-content">
+    
+    <!-- Compact Client Information -->
+    <div class="client-section">
+      <h3>Bill To</h3>
+      <div class="client-name">{{ client }}</div>
+      {% if client_address %}
+      <div class="client-address">{{ client_address|replace('\n','<br>')|safe }}</div>
+      {% endif %}
+    </div>
+
+    <!-- Items Section -->
+    <div class="items-section">
+      <table class="items-table">
+        <thead>
+          <tr>
+            <th class="col-desc">Description</th>
+            <th class="col-qty">Qty</th>
+            <th class="col-unit">Unit Price</th>
+            <th class="col-total">Total</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for item in line_items %}
+          <tr>
+            <td class="desc-cell">{{ item.description|e }}</td>
+            <td class="number-cell">{{ item.quantity }}</td>
+            <td class="number-cell">{{ currency_symbol }}{{ "%.2f"|format(item.unit_price) }}</td>
+            <td class="number-cell">{{ currency_symbol }}{{ "%.2f"|format(item.quantity * item.unit_price) }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Totals -->
+    <div class="totals-wrapper">
+      <table class="totals-table">
+        <tr class="subtotal-row">
+          <td class="label-cell">Subtotal</td>
+          <td class="amount-cell">{{ currency_symbol }}{{ "%.2f"|format(subtotal) }}</td>
+        </tr>
+        {% if tax_rate > 0 %}
+        <tr>
+          <td class="label-cell">Tax ({{ (tax_rate*100)|int }}%)</td>
+          <td class="amount-cell">{{ currency_symbol }}{{ "%.2f"|format(tax_amount) }}</td>
+        </tr>
+        {% endif %}
+        <tr class="total-row">
+          <td class="label-cell">TOTAL DUE</td>
+          <td class="amount-cell">{{ currency_symbol }}{{ "%.2f"|format(total) }}</td>
+        </tr>
+      </table>
+    </div>
+
+    <!-- Payment Terms -->
+    {% if payment_terms %}
+    <div class="payment-section">
+      <h4>Payment Information</h4>
+      <div class="payment-terms">{{ payment_terms|e|replace('\n','<br>')|safe }}</div>
+    </div>
+    {% endif %}
+    
+  </div>
+
+  <!-- Footer -->
+  <!-- <div class="footer">
+    <p>Thank you for choosing our services. We appreciate your business.</p>
+    <div class="footer-accent"></div>
+  </div> -->
+
+</div>
+</body>
+</html>

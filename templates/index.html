@@ -1,0 +1,689 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Invoice Generator</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🤖 AI Invoice Generator</h1>
+            <p>Create professional invoices using natural language or guided chat</p>
+        </header>
+
+        <!-- Mode Selection -->
+        <div class="mode-selection">
+            <h2>Choose Your Input Method</h2>
+            <div class="mode-buttons">
+                <button id="freeFormMode" class="mode-btn active">
+                    📝 Free-Form Description
+                </button>
+                <button id="chatMode" class="mode-btn">
+                    💬 Guided Chat
+                </button>
+            </div>
+        </div>
+
+        <!-- Free-Form Input Section -->
+        <div id="freeFormSection" class="input-section">
+            <h2>Describe Your Invoice</h2>
+            
+            <!-- Input Guidelines -->
+            <div class="input-guidelines">
+                <h3>💡 What to Include</h3>
+                <div class="guidelines-grid">
+                    <div class="guideline-item">
+                        <strong>👤 Client:</strong>
+                        <span>Company or person name</span>
+                        <em>e.g., "ABC Company", "John Smith"</em>
+                    </div>
+                    <div class="guideline-item">
+                        <strong>💰 Amount:</strong>
+                        <span>Total cost or hourly rate</span>
+                        <em>e.g., "$500", "20 hours at $75/hour"</em>
+                    </div>
+                    <div class="guideline-item">
+                        <strong>📅 Date:</strong>
+                        <span>When work was completed</span>
+                        <em>e.g., "last Friday", "March 15th"</em>
+                    </div>
+                    <div class="guideline-item">
+                        <strong>📋 Service:</strong>
+                        <span>What work was done</span>
+                        <em>e.g., "website design", "consulting"</em>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Examples Section -->
+            <div class="examples-section">
+                <h3>📚 Example Descriptions</h3>
+                <div class="example-buttons">
+                    <button class="example-btn" data-example="1">
+                        💻 Web Development
+                    </button>
+                    <button class="example-btn" data-example="2">
+                        🎨 Design Work
+                    </button>
+                    <button class="example-btn" data-example="3">
+                        🧑‍💼 Consulting
+                    </button>
+                </div>
+            </div>
+
+            <textarea 
+                id="invoiceDescription" 
+                placeholder="Try: 'Invoice TechCorp for website redesign project - worked 25 hours last week at $85/hour, plus $150 rush delivery fee. Project completed Friday.'"
+                rows="4"
+            ></textarea>
+            <button id="parseBtn">Parse with AI ✨</button>
+            <div id="aiStatus" class="ai-status" style="display: none;"></div>
+        </div>
+
+        <!-- Chat Input Section -->
+        <div id="chatSection" class="input-section" style="display: none;">
+            <h2>Guided Invoice Creation</h2>
+            <div class="chat-container">
+                <div id="chatMessages" class="chat-messages">
+                    <div class="bot-message">
+                        <div class="message-avatar">🤖</div>
+                        <div class="message-content">
+                            <p>Hi! I'll help you create an invoice step by step. Let's start:</p>
+                            <p><strong>Who is this invoice for?</strong> (Company name or client name)</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="chat-input-container">
+                    <input type="text" id="chatInput" placeholder="Type your answer here..." />
+                    <button id="chatSend">Send</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Parsed Section for Review -->
+
+        <div id="parsedSection" class="parsed-section" style="display: none;">
+            <h2>Review & Edit Details</h2>
+            <!-- ♻️ BEGIN new review panel  -->
+            <!-- Invoice meta & parties -->
+            <div class="form-grid">
+                <!-- Left column -->
+                <div class="form-group">
+                    <label for="logoUpload">Company Logo (Optional):</label>
+                    <input type="file" id="logoUpload" accept="image/*">
+                </div>
+                <div class="form-group">
+                    <label for="clientName">Client Name:</label>
+                    <input type="text" id="clientName">
+                </div>
+                <div class="form-group">
+                    <label for="clientAddress">Client Address:</label>
+                    <textarea id="clientAddress" rows="2"></textarea>
+                </div>
+
+                <!-- Right column -->
+                <div class="form-group">
+                    <label for="senderName">Your / Sender Name:</label>
+                    <input type="text" id="senderName" placeholder="Defaults to your business name">
+                </div>
+                <div class="form-group">
+                    <label for="senderAddress">Sender Address:</label>
+                    <textarea id="senderAddress" rows="2"></textarea>
+                </div>
+
+                <div class="form-group">
+                    <label for="invoiceNumber">Invoice #:</label>
+                    <input type="text" id="invoiceNumber" placeholder="auto or override">
+                </div>
+                <div class="form-group">
+                    <label for="invoiceDate">Invoice Date:</label>
+                    <input type="date" id="invoiceDate">
+                </div>
+                <div class="form-group">
+                    <label for="dueDate">Due Date:</label>
+                    <input type="date" id="dueDate">
+                </div>
+                <div class="form-group">
+                    <label for="paymentTerms">Payment Terms / Bank Details:</label>
+                    <textarea id="paymentTerms" rows="2" placeholder="e.g. Net 30, Bank XYZ…"></textarea>
+                </div>
+            </div>
+
+            <!-- Invoice items -->
+
+            <table id="lineItemsTable" class="table">
+            <thead>
+                <tr>
+                <th class="lineItemDescription">Description</th>
+                <th>Qty</th>
+                <th>Unit Price</th>
+                <th>Total</th>
+                <th></th>
+                </tr>
+            </thead>
+            <tbody></tbody>
+            </table>
+            <button id="addLineBtn" type="button" class="btn-secondary">➕ Add Line</button>
+
+
+            <div class="totals">
+                <label>Subtotal:
+                    <input id="subtotal" readonly>
+                </label>
+                <label>Tax Rate (%):
+                    <input id="taxRate" type="number" value="20">
+                </label>
+                <label>Tax Amount:
+                    <input id="taxAmount" readonly>
+                </label>
+                <label>Grand Total:
+                    <input id="grandTotal" readonly>
+                </label>
+                <label>Amount Paid:
+                    <input id="amountPaid" type="number" step="0.01" value="0">
+                </label>
+                <label class="balance">Balance Due:
+                    <input id="balanceDue" readonly>
+                </label>
+
+            </div>
+            <!-- ♻️ END new review panel  -->
+
+            
+            <button id="generateBtn" onclick="generateInvoice()">Generate Invoice 📄</button>
+        </div>
+
+        <div id="loading" class="loading" style="display: none;">
+            <p>Processing... ⚡</p>
+        </div>
+
+        <div id="invoiceResult" class="invoice-result"></div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/invoice.js') }}"></script>
+
+    <script>
+        // Make sure DOM is loaded before defining functions
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('DOM loaded, defining functions...');
+        });
+
+        document.getElementById('parseBtn').addEventListener('click', parseInvoice);
+        document.getElementById('freeFormMode').addEventListener('click', function() {
+            document.getElementById('freeFormSection').style.display = 'block';
+            document.getElementById('chatSection').style.display = 'none';
+            this.classList.add('active');
+            document.getElementById('chatMode').classList.remove('active');
+        });
+        document.getElementById('chatMode').addEventListener('click', function() {
+            document.getElementById('freeFormSection').style.display = 'none';
+            document.getElementById('chatSection').style.display = 'block';
+            this.classList.add('active');
+            document.getElementById('freeFormMode').classList.remove('active');
+        });
+        // Handle example button clicks
+        document.querySelectorAll('.example-btn').forEach(function(btn) {
+            btn.addEventListener('click', function() {
+                const exampleText = getExampleText(this.dataset.example);
+                document.getElementById('invoiceDescription').value = exampleText;
+            });
+        });
+        // Function to get example text based on button clicked
+        function getExampleText(exampleId) {
+            switch (exampleId) {
+                case '1':
+                    return "Invoice TechCorp for website redesign project - worked 25 hours last week at $85/hour, plus $150 rush delivery fee. Project completed Friday.";
+                case '2':
+                    return "Design work for Creative Agency - 15 hours at $100/hour, including logo design and branding materials.";
+                case '3':
+                    return "Consulting services for Startup Inc. - 10 hours at $120/hour, providing business strategy and market analysis.";
+                default:
+                    return "";
+            }
+        }
+        
+        // Function to add messages to chat
+        function addChatMessage(sender, message) {
+            const chatMessages = document.getElementById('chatMessages');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = sender === 'user' ? 'user-message' : 'bot-message';
+            messageDiv.innerHTML = `
+                <div class="message-avatar">${sender === 'user' ? '👤' : '🤖'}</div>
+                <div class="message-content"><p>${message}</p></div>
+            `;
+            chatMessages.appendChild(messageDiv);
+            chatMessages.scrollTop = chatMessages.scrollHeight; // Scroll to bottom
+        }
+
+        /* ----------  Guided-chat logic (single-API-call)  ---------- */
+        const questions = [
+        "Who is this invoice for? (client name)",
+        "What service did you provide?",
+        "What is the total amount or hours × rate?",
+        "On what date was the work completed?"
+        ];
+
+        let step   = 0;
+        let answer = { client:"", description:"", amount:"", date:"" };
+
+        /* Kick off the conversation every time the user switches to Chat mode */
+        function startGuidedChat(){
+            step = 0;
+            answer = { client:"", description:"", amount:"", date:"" };
+            clearChatWindow();                          // optional helper of yours
+            addChatMessage('bot', questions[0]);
+        }
+        document.getElementById('chatMode')
+                .addEventListener('click', startGuidedChat);
+
+        /* --- Send / Enter handlers --- */
+        document.getElementById('chatSend').addEventListener('click', handleSend);
+        document.getElementById('chatInput').addEventListener('keydown', e=>{
+        if (e.key === 'Enter') handleSend();
+        });
+
+        function handleSend(){
+            const box  = document.getElementById('chatInput');
+            const text = box.value.trim();
+            if (!text) return;
+            addChatMessage('user', text);
+            box.value = '';
+
+            /* store answer */
+            if      (step === 0) answer.client      = text;
+            else if (step === 1) answer.description = text;
+            else if (step === 2) answer.amount      = text;
+            else if (step === 3) answer.date        = text;
+            step++;
+
+            /* ask the next question or send everything off */
+            if (step < questions.length){
+                addChatMessage('bot', questions[step]);
+                return;
+            }
+
+            addChatMessage('bot', "Got it – generating your invoice…");
+            sendInvoiceData();
+        }
+
+        async function sendInvoiceData(){
+            try{
+                // compile a single sentence so /parse keeps working
+                const sentence = `Invoice ${answer.client} for ${answer.description} - \
+            ${answer.amount}, completed on ${answer.date}.`;
+                const res  = await fetch('/parse', {
+                    method:'POST',
+                    headers:{'Content-Type':'application/json'},
+                    body: JSON.stringify({ text: sentence })
+                });
+                const data = await res.json();
+
+                preloadLineItems(data);
+
+
+                if (data.error){
+                    addChatMessage('bot', '❌ '+data.error);
+                    return;
+                }
+
+                document.getElementById('clientName').value    = data.client || '';
+                if (data.sender) {
+                    document.getElementById('senderName').value = data.sender;
+                } else {
+                    document.getElementById('senderName').value = 'Your Business Name'; // Default value
+                }
+                document.getElementById('clientAddress').value = data.client_address || '';
+                document.getElementById('invoiceDate').value   = data.invoice_date || '';
+                document.getElementById('dueDate').value       = data.due_date || '';
+                document.getElementById('taxRate').value       = (data.tax_rate || 0)*100;
+
+                // Show AI processing status
+                document.getElementById('parsedSection').style.display = 'block';
+                document.getElementById('freeFormSection').style.display = 'none';
+                addChatMessage('bot', 'All set! Review the fields and hit **Generate Invoice**.');
+            }catch(e){
+                console.error(e);
+                addChatMessage('bot', '❌ Server error – please try again.');
+            }
+        }
+
+        // Set up initial state
+        document.getElementById('freeFormSection').style.display = 'block';
+        document.getElementById('chatSection').style.display = 'none';
+        document.getElementById('parsedSection').style.display = 'none';
+        document.getElementById('loading').style.display = 'none';
+        document.getElementById('invoiceResult').innerHTML = '';
+        // Set active mode button
+        document.getElementById('freeFormMode').classList.add('active');
+        document.getElementById('chatMode').classList.remove('active');
+        // Set up initial invoice description
+        document.getElementById('invoiceDescription').value = "Describe your invoice here...";
+        // Set up AI status
+        const aiStatus = document.getElementById('aiStatus');
+        aiStatus.style.display = 'none';
+        aiStatus.className = 'ai-status'; // Reset class
+        aiStatus.innerHTML = ''; // Clear any previous status
+        // Set up loading state
+        const loading = document.getElementById('loading');
+        loading.style.display = 'none'; // Hide loading initially
+        // Reset parsed section
+        const parsedSection = document.getElementById('parsedSection');
+        parsedSection.style.display = 'none'; // Hide parsed section initially
+        // Reset invoice result
+        const invoiceResult = document.getElementById('invoiceResult');
+        invoiceResult.innerHTML = ''; // Clear any previous invoice result
+
+
+        // Define functions globally immediately
+        async function parseInvoice() {
+            console.log('parseInvoice called');
+            const text = document.getElementById('invoiceDescription').value.trim();
+            
+            if (!text) {
+                alert('Please describe your invoice first!');
+                return;
+            }
+
+            const loading = document.getElementById('loading');
+            const parsedSection = document.getElementById('parsedSection');
+            
+            loading.style.display = 'block';
+            parsedSection.style.display = 'none';
+
+            try {
+                const response = await fetch('/parse', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ text: text })
+                });
+
+                const data = await response.json();
+
+                
+                preloadLineItems(data);
+
+                
+                if (data.error) {
+                    alert(data.error);
+                    return;
+                }
+
+                document.getElementById('parsedSection').style.display = 'block';
+
+                
+                document.getElementById('clientName').value    = data.client || '';
+                if (data.sender) {
+                    document.getElementById('senderName').value = data.sender;
+                } else {
+                    document.getElementById('senderName').value = 'Your Business Name'; // Default value
+                }
+                document.getElementById('clientAddress').value = data.client_address || '';
+                document.getElementById('invoiceDate').value   = data.invoice_date || '';
+                document.getElementById('dueDate').value       = data.due_date || '';
+                document.getElementById('taxRate').value       = (data.tax_rate || 0)*100;
+                
+
+
+                // Show AI processing status
+                const aiStatus = document.getElementById('aiStatus');
+                if (data.ai_processed) {
+                    const confidence = Math.round((data.confidence || 0.5) * 100);
+                    aiStatus.innerHTML = `🤖 Processed with AI (${confidence}% confidence)`;
+                    aiStatus.className = 'ai-status ai-success';
+                } else {
+                    aiStatus.innerHTML = '⚡ Processed with fallback parser';
+                    aiStatus.className = 'ai-status ai-fallback';
+                }
+                aiStatus.style.display = 'block';
+
+                // Show the parsed section
+                parsedSection.style.display = 'block';
+                parsedSection.scrollIntoView({ behavior: 'smooth' });
+
+            } catch (error) {
+                alert('Error parsing invoice: ' + error.message);
+            } finally {
+                loading.style.display = 'none';
+            }
+        }
+
+
+        async function generateInvoice () {
+            // 1 Collect header fields
+            const payload = {
+                client:        document.getElementById('clientName').value.trim(),
+                client_address: document.getElementById('clientAddress').value.trim(),
+                sender:        document.getElementById('senderName').value.trim(),
+                sender_address: document.getElementById('senderAddress').value.trim(),
+                due_date:      document.getElementById('dueDate').value,
+                invoice_date:  document.getElementById('invoiceDate').value.trim(),
+                invoice_no:    document.getElementById('invoiceNumber').value.trim(),
+                payment_terms: document.getElementById('paymentTerms').value.trim(),
+                tax_rate:      (+document.getElementById('taxRate').value || 0) / 100,
+                currency_symbol: '£',
+                line_items: []
+            };
+
+            // 2 Collect table rows
+            document.querySelectorAll('#lineItemsTable tbody tr').forEach(row=>{
+                const desc  = row.querySelector('.desc').value.trim();
+                const qty   = +row.querySelector('.qty').value || 0;
+                const unit  = +row.querySelector('.unit').value|| 0;
+                if (desc && qty>0) payload.line_items.push({ description:desc, quantity:qty, unit_price:unit });
+            });
+
+            // 3 Validate
+            if (!payload.client || payload.line_items.length===0){
+                alert('Please enter a client name and at least one line item.');
+                return;
+            }
+
+            payload.amount_paid = +document.getElementById('amountPaid').value || 0;
+
+
+            // 3) Build multipart form *once*
+            const form = new FormData();
+            const logoFile = document.getElementById('logoUpload').files[0]
+            if (logoFile) form.append('logo', logoFile);
+            form.append('payload', JSON.stringify(payload));
+
+            // 4) POST → /generate
+            document.getElementById('loading').style.display = 'block';
+            try {
+                const options = logoFile
+                    ? { method: 'POST', body: form }                // multipart, no custom header
+                    : {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)               // pure JSON
+                    };
+
+                const res = await fetch('/generate', options);
+                document.getElementById('invoiceResult').innerHTML = await res.text();
+                document.getElementById('invoiceResult').scrollIntoView({ behavior: 'smooth' });
+
+                const numberEl = document.querySelector('#invoiceResult .invoice-number');
+                if(numberEl){
+                    const serverNo = numberEl.textContent.replace(/[^0-9\-]/g,'').trim();
+                    if(serverNo) {
+                        document.getElementById('invoiceNumber').value = serverNo;
+                        payload.invoice_no = serverNo; // update payload for Download PDF
+                    }
+                }
+
+            } catch (err) {
+                alert('Error generating invoice: ' + err.message);
+            } finally {
+                document.getElementById('loading').style.display = 'none';
+            }
+
+            // Set up PDF download after invoice is generated
+            setupPDFDownload(payload);
+        }
+
+        // Function to set up PDF download functionality
+        function setupPDFDownload(payload) {
+            // Use event delegation to handle the PDF button click
+            document.addEventListener('click', function(e) {
+                if (e.target && e.target.id === 'downloadPDFBtn') {
+                    e.preventDefault();
+                    downloadPDF(payload);
+                }
+            });
+
+            if (document.querySelector('.logo img')) {
+                // If a logo is present, add it to the payload
+                payload.logo_url = document.querySelector('.logo img').src || '';
+            } else {
+                // If no logo is present, set a default or empty value
+                payload.logo_url = '';
+            }
+
+        }
+
+        // PDF download function
+        async function downloadPDF(payload) {
+            console.log('downloadPDF called with data:', payload);
+
+            try {
+                const response = await fetch('/download-pdf', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(payload)
+                });
+
+                if (response.ok) {
+                    // Create a blob from the PDF data
+                    const blob = await response.blob();
+                    
+                    // Create a download link
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = 'invoice.pdf';
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    window.URL.revokeObjectURL(url);
+                    
+                    console.log('PDF download successful');
+                } else {
+                    const errorText = await response.text();
+                    console.error('PDF generation failed:', errorText);
+                    alert('Error generating PDF. Please try again.');
+                }
+            } catch (error) {
+                console.error('PDF download error:', error);
+                alert('Error downloading PDF: ' + error.message);
+            }
+        }
+
+        // Make functions available globally
+        window.parseInvoice = parseInvoice;
+        window.generateInvoice = generateInvoice;
+
+        // Allow Enter key to trigger parsing
+        document.addEventListener('DOMContentLoaded', function() {
+            document.getElementById('invoiceDescription').addEventListener('keydown', function(e) {
+                if (e.key === 'Enter' && e.ctrlKey) {
+                    parseInvoice();
+                }
+            });
+        });
+
+        // Global print functions for invoice
+        window.printInvoice = function() {
+            // Get current invoice data from the DOM
+            const invoiceContainer = document.querySelector('.invoice-container');
+            if (!invoiceContainer) {
+                alert('No invoice found to print');
+                return;
+            }
+
+            // Extract data from the displayed invoice
+            const client = invoiceContainer.querySelector('.bill-to strong')?.textContent || '';
+            const amountText = invoiceContainer.querySelector('.total-row .amount strong')?.textContent || '$0.00';
+            const amount = parseFloat(amountText.replace(',', '')) || 0;
+            const date = invoiceContainer.querySelector('.meta-item .value')?.textContent || '';
+            const description = invoiceContainer.querySelector('tbody td:first-child')?.textContent || '';
+
+            const invoiceData = { client, amount, date, description };
+            
+            // Encode data for URL
+            const encodedData = encodeURIComponent(JSON.stringify(invoiceData));
+            
+            // Open print-specific page in new window
+            const printWindow = window.open(`/print/${encodedData}`, '_blank', 'width=800,height=600');
+            
+            // Fallback: if popup blocked, use simple print
+            if (!printWindow) {
+                simplePrint();
+            }
+        };
+
+        window.simplePrint = function() {
+            // Hide everything except the invoice
+            const invoiceContainer = document.querySelector('.invoice-container');
+            if (!invoiceContainer) {
+                alert('No invoice found to print');
+                return;
+            }
+
+            // Create a new window for printing
+            const printWindow = window.open('', '_blank');
+            printWindow.document.write(`
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <title>Invoice</title>
+                    <style>
+                        body { 
+                            font-family: Arial, sans-serif; 
+                            margin: 20px; 
+                            color: #333; 
+                        }
+                        .actions { display: none !important; }
+                        .invoice-container { max-width: 800px; margin: 0 auto; }
+                        .invoice-header { display: flex; justify-content: space-between; margin-bottom: 30px; padding-bottom: 20px; border-bottom: 2px solid #e0e0e0; }
+                        .invoice-title h1 { font-size: 2.5em; color: #2c3e50; margin: 0; }
+                        .invoice-number { color: #7f8c8d; font-weight: bold; margin: 5px 0; }
+                        .invoice-from { text-align: right; color: #34495e; }
+                        .invoice-from h3 { margin-bottom: 10px; color: #2c3e50; }
+                        .invoice-details { display: flex; justify-content: space-between; margin-bottom: 30px; }
+                        .bill-to h3 { color: #2c3e50; margin-bottom: 10px; }
+                        .invoice-meta { text-align: right; }
+                        .meta-item { margin-bottom: 8px; }
+                        .label { color: #7f8c8d; margin-right: 10px; }
+                        .value { font-weight: bold; color: #2c3e50; }
+                        .invoice-items table { width: 100%; border-collapse: collapse; margin-bottom: 30px; }
+                        .invoice-items th { background-color: #34495e; color: white; padding: 15px; text-align: left; }
+                        .invoice-items td { padding: 15px; border-bottom: 1px solid #e0e0e0; }
+                        .amount { text-align: right; font-weight: bold; }
+                        .total-row { background-color: #f8f9fa; }
+                        .total-row td { font-size: 1.2em; padding: 20px 15px; }
+                        .invoice-footer { text-align: center; margin-top: 40px; padding-top: 20px; border-top: 1px solid #e0e0e0; }
+                    </style>
+                </head>
+                <body>
+                    ${invoiceContainer.outerHTML}
+                </body>
+                </html>
+            `);
+            printWindow.document.close();
+            
+            // Wait for content to load, then print
+            setTimeout(() => {
+                printWindow.print();
+                printWindow.close();
+            }, 250);
+        };
+    </script>
+
+</body>
+</html>
