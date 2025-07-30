@@ -10,10 +10,15 @@ import openai
 import os
 from dotenv import load_dotenv
 from werkzeug.utils import secure_filename
+from logging_config import LOGGING
+import logging.config
 
 
 # Load environment variables
 load_dotenv()
+# Configure logging
+logging.config.dictConfig(LOGGING)
+logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 
@@ -26,7 +31,11 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
 # Configure OpenAI
-openai.api_key = os.getenv('OPENAI_API_KEY')
+OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
+if not OPENAI_API_KEY:
+    raise RuntimeError("Set OPENAI_API_KEY in .env")
+
+openai.api_key = OPENAI_API_KEY
 
 class AIInvoiceParser:
     def __init__(self):
@@ -35,7 +44,7 @@ class AIInvoiceParser:
     
     def parse(self, text):
         """Use OpenAI function calling to parse invoice description with structured output"""
-        print(f"🤖 AI Parser called with: '{text}'")
+        logger.info(f"🤖 AI Parser called with: '{text}'")
         
         try:
             # Define the function schema for invoice extraction
@@ -75,38 +84,12 @@ class AIInvoiceParser:
                                 "description": "Confidence level from 0-1 indicating how certain the extraction is"
                             }
                         },
-                        "required": ["client", "line_items"]
-
-
-
-                        # "properties": {
-                        #     "client": {
-                        #         "type": "string",
-                        #         "description": "The client or company name. If not explicitly mentioned, use 'Client Name'"
-                        #     },
-                        #     "amount": {
-                        #         "type": "number",
-                        #         "description": "The total amount in the given currency (USD, GBP, EUR, etc.). Calculate from hours * rate if given. Use 0 if unclear."
-                        #     },
-                        #     "date": {
-                        #         "type": "string",
-                        #         "description": "The invoice date in format 'Month DD, YYYY'. Use today's date if not specified."
-                        #     },
-                        #     "description": {
-                        #         "type": "string", 
-                        #         "description": "A brief description of the services provided. Default to 'Professional services' if unclear."
-                        #     },
-                        #     "confidence": {
-                        #         "type": "number",
-                        #         "description": "Confidence level from 0-1 indicating how certain the extraction is"
-                        #     }
-                        # },
-                        #"required": ["client", "amount", "date", "description", "confidence"]
+                        "required": ["client", "line_items"]        
                     }
                 }
             }
 
-            print("🚀 Calling OpenAI API with function calling...")
+            logger.info("🚀 Calling OpenAI API with function calling...")
             response = openai.chat.completions.create(
                 model="gpt-3.5-turbo",
                 messages=[
@@ -155,29 +138,18 @@ class AIInvoiceParser:
                 result['raw_text']   = text
                 result['ai_processed'] = True
 
-                
-                print(f"✅ OpenAI function call result: {function_args}")
-                
-                # # Build result with validation
-                # result = {
-                #     'client': str(function_args.get('client', 'Client Name')).strip(),
-                #     'amount': float(function_args.get('amount', 0)),
-                #     'date': str(function_args.get('date', datetime.now().strftime('%B %d, %Y'))).strip(),
-                #     'description': str(function_args.get('description', 'Professional services')).strip(),
-                #     'confidence': float(function_args.get('confidence', 0.5)),
-                #     'raw_text': text,
-                #     'ai_processed': True
-                # }
-                
-                print(f"🎯 AI successfully parsed with confidence {result['confidence']}: {result}")
+
+                logger.info(f"✅ OpenAI function call result: {function_args}")
+
+                logger.info(f"🎯 AI successfully parsed with confidence {result['confidence']}: {result}")
                 return result
             else:
                 raise ValueError("No function call in response")
                 
         except Exception as e:
-            print(f"❌ OpenAI API error: {e}")
+            logger.error(f"❌ OpenAI API error: {e}")
             # Fall back to regex parser
-            print("🔄 Falling back to regex parser...")
+            logger.info("🔄 Falling back to regex parser...")
             fallback_result = self.fallback_parser.parse(text)
             fallback_result['ai_processed'] = False
             fallback_result['confidence'] = 0.3  # Lower confidence for fallback
@@ -329,103 +301,6 @@ def generate_invoice():
     )
 
 
-# @app.route('/generate', methods=['POST'])
-# def generate_invoice():
-#     data = request.get_json(force=True) or {}
-
-#     # ---------- 1. basic fields ----------
-#     client          = data.get('client', 'Client')
-#     client_address  = data.get('client_address', '')
-#     sender          = data.get('sender', 'Your Business')
-#     sender_address  = data.get('sender_address', '')
-#     invoice_no      = data.get('invoice_no', f"INV-{datetime.now():%Y%m%d-%H%M}")
-#     invoice_date    = data.get('invoice_date', datetime.now().date().isoformat())
-#     due_date        = data.get('due_date', '')
-#     payment_terms   = data.get('payment_terms', '')
-#     currency        = data.get('currency_symbol', '£')
-#     tax_rate        = float(data.get('tax_rate', 0.0))      # 0-1
-
-    
-
-
-#     # ---------- 2. line-items & totals ----------
-#     items = data.get('line_items', [])
-#     subtotal   = sum(i['quantity'] * i['unit_price'] for i in items)
-#     tax_amount = subtotal * tax_rate
-#     total      = subtotal + tax_amount
-
-#     return render_template(
-#         'invoice.html',
-#         client=client,
-#         client_address=client_address,
-#         sender=sender,
-#         sender_address=sender_address,
-#         invoice_no=invoice_no,
-#         invoice_date=invoice_date,
-#         due_date=due_date,
-#         payment_terms=payment_terms,
-#         currency_symbol=currency,
-#         line_items=items,
-#         subtotal=subtotal,
-#         tax_rate=tax_rate,
-#         tax_amount=tax_amount,
-#         total=total,
-#     )
-
-
-# @app.route('/generate', methods=['POST'])
-# def generate_invoice():
-#     data = request.get_json()
-    
-#     # Add invoice number and your business details
-#     invoice_data = {
-#         'invoice_number': f"INV-{datetime.now().strftime('%Y%m%d')}-001",
-#         'your_name': "Your Name",
-#         'your_email': "your.email@example.com",
-#         'your_address': "Your Address\nCity, State ZIP",
-#         'client': data.get('client'),
-#         'amount': data.get('amount'),
-#         'date': data.get('date'),
-#         'description': data.get('description'),
-#         'due_date': data.get('date')  # For now, same as invoice date
-#     }
-    
-#     return render_template('invoice.html', **invoice_data)
-
-# @app.route('/download-pdf', methods=['POST'])
-# def download_pdf():
-#     data = request.get_json()
-    
-#     # Prepare invoice data
-#     invoice_data = {
-#         'invoice_number': f"INV-{datetime.now().strftime('%Y%m%d')}-001",
-#         'your_name': "Your Name",
-#         'your_email': "your.email@example.com",
-#         'your_address': "Your Address\nCity, State ZIP",
-#         'client': data.get('client'),
-#         'amount': data.get('amount'),
-#         'date': data.get('date'),
-#         'description': data.get('description'),
-#         'due_date': data.get('date')
-#     }
-    
-#     # Render the PDF template
-#     html_content = render_template('invoice_pdf.html', **invoice_data)
-    
-#     # Create PDF
-#     result = BytesIO()
-#     pdf = pisa.pisaDocument(BytesIO(html_content.encode("UTF-8")), result)
-    
-#     if not pdf.err:
-#         # Create response
-#         response = make_response(result.getvalue())
-#         response.headers['Content-Type'] = 'application/pdf'
-#         response.headers['Content-Disposition'] = f'attachment; filename="invoice-{invoice_data["invoice_number"]}.pdf"'
-#         return response
-#     else:
-#         return "Error generating PDF", 500
-
-
 @app.route('/download-pdf', methods=['POST'])
 def download_pdf():
     data = request.get_json(force=True) or {}
@@ -474,36 +349,6 @@ def download_pdf():
         balance_due = balance_due
     )
 
-    # if request.content_type.startswith('multipart/form-data'):
-    #     payload = json.loads(request.form['payload'])
-    #     file = request.files.get('logo')
-    # else:                                         # fallback for JSON callers
-    #     payload = request.get_json(force=True) or {}
-    #     file = None
-
-    # logo_url = None
-    # if file and file.filename:
-    #     fname = secure_filename(file.filename)
-    #     save_path = os.path.join(app.config['UPLOAD_FOLDER'], fname)
-    #     file.save(save_path)
-    #     logo_url = url_for('static', filename=f'uploads/{fname}', _external=False)
-
-    # # 2 -- compute totals (same as before)
-    # items = payload.get('line_items', [])
-    # tax_rate  = float(payload.get('tax_rate', 0.0))
-    # subtotal  = sum(i['quantity']*i['unit_price'] for i in items)
-    # tax_amt   = subtotal * tax_rate
-    # total     = subtotal + tax_amt
-
-    # html = render_template(
-    #     'invoice_pdf2.html',  # or 'invoice_pdf.html' if you prefer
-    #     **payload,
-    #     logo_url     = logo_url,
-    #     subtotal     = subtotal,
-    #     # tax_rate     = tax_rate,
-    #     tax_amount   = tax_amt,
-    #     total        = total
-    # )
 
     # ---------- 4. Convert HTML → PDF with Playwright (PERFECT rendering) ----------
     try:
@@ -540,19 +385,14 @@ def download_pdf():
         print(f"Playwright error: {e}")
         return f"Error generating PDF: {str(e)}", 500
 
-
-
-    # ---------- 4. Convert HTML → PDF ----------
-    # result = BytesIO()
-    # pdf = pisa.pisaDocument(BytesIO(html.encode("utf-8")), result)
-
-    # if pdf.err:
-    #     return "Error generating PDF", 500
-
-    # response = make_response(result.getvalue())
-    # response.headers['Content-Type'] = 'application/pdf'
-    # response.headers['Content-Disposition'] = f'attachment; filename=\"{invoice_no}.pdf\"'
-    # return response
+@app.errorhandler(Exception)
+def handle_error(err):
+    logger.exception("Unhandled error")          # stacktrace to log
+    # Browser requests (XHR / fetch) expect JSON
+    if request.accept_mimetypes.accept_json:
+        return jsonify({"error": "Server error, please try again"}), 500
+    # Fallback HTML
+    return render_template("error.html", message="Unexpected error"), 500
 
 
 if __name__ == '__main__':

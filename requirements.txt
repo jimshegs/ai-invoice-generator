@@ -1,0 +1,13 @@
+# --- Web framework
+Flask==3.0.3
+
+# --- Env / config
+python-dotenv==1.0.1
+
+# --- PDF generation (Chromium automation)
+playwright==1.46.0
+
+# --- OpenAI SDK
+openai>=1.40.0
+
+
