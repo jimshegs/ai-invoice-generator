@@ -304,10 +304,12 @@
         </table>
 
     </div>
-
-    <div class="payment-section">
-        <h4>Payment Terms</h4>
-        <p class="payment-terms">{{ payment_terms }}</p>
+    {% if payment_terms %}
+        <div class="payment-section">
+            <h4>Payment Terms</h4>
+            <p class="payment-terms">{{ payment_terms }}</p>
+        </div>
+    {% endif %}
 </div>
 
 </body>

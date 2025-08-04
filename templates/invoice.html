@@ -81,6 +81,12 @@
         </table>
 
     </div>
+    {% if payment_terms %}
+        <div class="payment-section">
+            <h4>Payment Terms</h4>
+            <p class="payment-terms">{{ payment_terms }}</p>
+        </div>
+    {% endif %}
 
     <div class="invoice-footer">
         <p>Thank you for your business!</p>
