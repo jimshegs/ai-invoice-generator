@@ -22,6 +22,8 @@ logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 
+from pdf_utils import html_to_pdf
+
 from db import init_db, next_invoice_no, persist_invoice
 init_db()
 
@@ -273,7 +275,7 @@ def generate_invoice():
         fname = secure_filename(file.filename)
         save_path = os.path.join(app.config['UPLOAD_FOLDER'], fname)
         file.save(save_path)
-        logo_url = url_for('static', filename=f'uploads/{fname}', _external=False)
+        logo_url = url_for('static', filename=f'uploads/{fname}', _external=True)
 
     # 2 -- compute totals (same as before)
     items = payload.get('line_items', [])
@@ -349,41 +351,55 @@ def download_pdf():
         balance_due = balance_due
     )
 
+    
 
     # ---------- 4. Convert HTML → PDF with Playwright (PERFECT rendering) ----------
     try:
-        with sync_playwright() as p:
-            # Launch Chrome browser (headless)
-            browser = p.chromium.launch(headless=True)
-            page = browser.new_page()
+        pdf_bytes = html_to_pdf(html)
+    except Exception:
+        app.logger.exception("PDF generation failed for %s", invoice_no)
+        return "Error generating PDF", 500
+
+    response = make_response(pdf_bytes)
+    response.headers['Content-Type'] = 'application/pdf'
+    response.headers['Content-Disposition'] = f'attachment; filename="{invoice_no}.pdf"'
+    return response
+
+
+    # ---------- 4. Convert HTML → PDF with Playwright (PERFECT rendering) ----------
+    # try:
+    #     with sync_playwright() as p:
+    #         # Launch Chrome browser (headless)
+    #         browser = p.chromium.launch(headless=True)
+    #         page = browser.new_page()
             
-            # Set content and wait for it to load
-            page.set_content(html, wait_until='networkidle')
+    #         # Set content and wait for it to load
+    #         page.set_content(html, wait_until='networkidle')
             
-            # Generate PDF with perfect rendering
-            pdf_bytes = page.pdf(
-                format='A4',
-                print_background=True,  # CRITICAL: renders backgrounds and colors
-                margin={
-                    'top': '0mm',
-                    'bottom': '0mm', 
-                    'left': '0mm',
-                    'right': '0mm'
-                },
-                prefer_css_page_size=True
-            )
+    #         # Generate PDF with perfect rendering
+    #         pdf_bytes = page.pdf(
+    #             format='A4',
+    #             print_background=True,  # CRITICAL: renders backgrounds and colors
+    #             margin={
+    #                 'top': '0mm',
+    #                 'bottom': '0mm', 
+    #                 'left': '0mm',
+    #                 'right': '0mm'
+    #             },
+    #             prefer_css_page_size=True
+    #         )
             
-            browser.close()
+    #         browser.close()
             
-        # Create response
-        response = make_response(pdf_bytes)
-        response.headers['Content-Type'] = 'application/pdf'
-        response.headers['Content-Disposition'] = f'attachment; filename="{invoice_no}.pdf"'
-        return response
+    #     # Create response
+    #     response = make_response(pdf_bytes)
+    #     response.headers['Content-Type'] = 'application/pdf'
+    #     response.headers['Content-Disposition'] = f'attachment; filename="{invoice_no}.pdf"'
+    #     return response
         
-    except Exception as e:
-        print(f"Playwright error: {e}")
-        return f"Error generating PDF: {str(e)}", 500
+    # except Exception as e:
+    #     print(f"Playwright error: {e}")
+    #     return f"Error generating PDF: {str(e)}", 500
 
 @app.errorhandler(Exception)
 def handle_error(err):
