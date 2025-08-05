@@ -360,6 +360,20 @@ def download_pdf():
         app.logger.exception("PDF generation failed for %s", invoice_no)
         return "Error generating PDF", 500
 
+    # Decide filename once
+    pdf_dir = os.path.join(app.static_folder, "invoices")
+    os.makedirs(pdf_dir, exist_ok=True)
+    pdf_file  = f"{invoice_no}.pdf"
+    pdf_path  = os.path.join(pdf_dir, pdf_file)
+
+    with open(pdf_path, "wb") as f:
+        f.write(pdf_bytes)
+
+    # Store path (relative, for serving later)
+    from db import update_pdf_path
+    update_pdf_path(invoice_no, f"invoices/{pdf_file}")
+
+    # Create response with PDF bytes
     response = make_response(pdf_bytes)
     response.headers['Content-Type'] = 'application/pdf'
     response.headers['Content-Disposition'] = f'attachment; filename="{invoice_no}.pdf"'
@@ -400,6 +414,52 @@ def download_pdf():
     # except Exception as e:
     #     print(f"Playwright error: {e}")
     #     return f"Error generating PDF: {str(e)}", 500
+
+# @app.route("/history")
+# def history():
+#     from db import get_conn
+#     conn = get_conn()
+#     rows = conn.execute(
+#         "SELECT invoice_no, created_at, json_extract(payload_json,'$.client') AS client, "
+#         "json_extract(payload_json,'$.total') AS total, pdf_path "
+#         "FROM invoices ORDER BY created_at DESC"
+#     ).fetchall()
+#     conn.close()
+#     return render_template("history.html", invoices=rows)
+
+
+@app.route("/history")
+def history():
+    from db import get_conn
+    conn = get_conn()
+    rows = conn.execute(
+        "SELECT invoice_no, created_at, payload_json, pdf_path "
+        "FROM invoices ORDER BY created_at DESC"
+    ).fetchall()
+    conn.close()
+
+    invoices = []
+    for r in rows:
+        payload = json.loads(r["payload_json"]) if r["payload_json"] else {}
+        client  = payload.get("client", "—")
+        # try total from payload, else compute
+        total = payload.get("total")
+        if total is None:
+            items = payload.get("line_items", [])
+            subtotal = sum(i["quantity"] * i["unit_price"] for i in items)
+            tax_rate = float(payload.get("tax_rate", 0))
+            total = subtotal * (1 + tax_rate)
+        invoices.append(
+            {
+                "invoice_no":  r["invoice_no"],
+                "date":        r["created_at"][:10],
+                "client":      client,
+                "total":       total,
+                "pdf_path":    r["pdf_path"],
+            }
+        )
+
+    return render_template("history.html", invoices=invoices)
 
 @app.errorhandler(Exception)
 def handle_error(err):

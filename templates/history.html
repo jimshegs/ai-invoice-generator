@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Invoice History</title>
+  <!-- reuse global stylesheet -->
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+
+{% block content %}
+<div class="page-bg">          {# NEW: purple gradient wrapper #}
+  <div class="card history-card">
+    <h1 class="title">Past Invoices</h1>
+
+    {% if invoices %}
+      <table class="table history-table">
+        <thead>
+          <tr>
+            <th style="width:120px">Invoice #</th>
+            <th style="width:140px">Date</th>
+            <th style="width:140px">Client</th>
+            <th style="width:140px">Total</th>
+            <th style="width:100px">PDF</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for inv in invoices %}
+          <tr>
+            <td>{{ inv.invoice_no }}</td>
+            <td>{{ inv.date }}</td>
+            <td>{{ inv.client }}</td>
+            <td>{{ '%.2f'|format(inv.total) }}</td>
+            <td>
+              {% if inv.pdf_path %}
+                <a class="btn-download"
+                   href="{{ url_for('static', filename=inv.pdf_path) }}"
+                   target="_blank">⬇︎</a>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <p>No invoices yet.</p>
+    {% endif %}
+
+    <div class="actions">
+      <a href="{{ url_for('index') }}" class="btn-secondary">← Back to new invoice</a>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+</body>
+</html>

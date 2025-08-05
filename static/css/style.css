@@ -578,3 +578,149 @@ button:active {
 html {
     scroll-behavior: smooth;
 }
+
+
+/* ─── History page enhancements ─────────────────────────────── */
+.history-card {
+  margin: 2rem auto;
+  max-width: 900px;
+  background: rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(6px);
+  border-radius: 12px;
+  padding: 2rem 2.5rem 3rem;
+  box-shadow: 0 10px 25px rgba(0,0,0,0.25);
+}
+
+.history-card .title {
+  margin-bottom: 1.25rem;
+  font-size: 2rem;
+  font-weight: 700;
+}
+
+.history-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.95rem;
+}
+
+.history-table th,
+.history-table td {
+  padding: 0.75rem 0.9rem;
+}
+
+.history-table thead tr {
+  background: rgba(255,255,255,0.16);
+}
+
+.history-table tbody tr:nth-child(even) {
+  background: rgba(255,255,255,0.06);
+}
+
+/* subtle 1-px row separators */
+.history-table tbody tr + tr td {
+  border-top: 1px solid rgba(255,255,255,0.12);
+}
+
+/* hover effect */
+.history-table tbody tr:hover {
+  background: rgba(255,255,255,0.18);
+}
+
+/* right-align numeric cells */
+.history-table .right {
+  text-align: right;
+}
+
+/* minimal icon button for download */
+.btn-download {
+  display: inline-block;
+  width: 32px;
+  height: 32px;
+  line-height: 32px;
+  text-align: center;
+  border-radius: 8px;
+  background: #1d6f8c;
+  color: #fff;
+  text-decoration: none;
+  font-size: 0.95rem;
+  transition: background 0.25s;
+}
+.btn-download:hover {
+  background: #238fb3;
+}
+
+.actions {
+  margin-top: 2rem;
+  text-align: center;
+}
+
+/* ╭─ Purple gradient page background ─────────────────────────── */
+.page-bg {
+  min-height: 100vh;
+  background: linear-gradient(135deg, #5560ff 0%, #8347ff 50%, #943eeb 100%);
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 3rem 1rem;
+}
+
+/* ╭─ White card reused from index.html ───────────────────────── */
+.history-card {
+  width: 100%;
+  max-width: 960px;
+  background: #ffffff;
+  border-radius: 12px;
+  box-shadow: 0 15px 35px rgba(0,0,0,0.1);
+  padding: 2rem 2.5rem 3rem;
+}
+
+/* Title spacing */
+.history-card .title {
+  margin-bottom: 1.5rem;
+}
+
+/* ╭─ Table fixes ─────────────────────────────────────────────── */
+.history-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;               /* keeps header/body widths identical */
+}
+
+.history-table th,
+.history-table td {
+  padding: 0.9rem 0.6rem;
+  text-align: left;
+}
+
+.history-table th {
+  background: #f4f6fa;
+  font-weight: 600;
+}
+
+.history-table tbody tr:nth-child(even) {
+  background: #fafbfc;
+}
+
+.history-table tbody tr:hover {
+  background: #edf1fc;
+}
+
+.history-table .right { text-align: right; }
+
+/* Download icon button */
+.btn-download {
+  display: inline-block;
+  width: 36px;
+  height: 32px;
+  line-height: 32px;
+  text-align: center;
+  border-radius: 6px;
+  background: #1d6f8c;
+  color: #fff;
+  font-size: 0.9rem;
+  text-decoration: none;
+  transition: background .2s;
+}
+.btn-download:hover { background: #238fb3; }
+
+.actions { text-align: center; margin-top: 2rem; }

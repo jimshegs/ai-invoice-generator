@@ -1,5 +1,6 @@
 # db.py
 import sqlite3, json
+from sqlite3 import Row
 from pathlib import Path
 from datetime import datetime
 
@@ -10,12 +11,15 @@ CREATE TABLE IF NOT EXISTS invoices (
   id            INTEGER PRIMARY KEY AUTOINCREMENT,
   created_at    TEXT DEFAULT CURRENT_TIMESTAMP,
   invoice_no    TEXT UNIQUE,
-  payload_json  TEXT
+  payload_json  TEXT,
+  pdf_path      TEXT
 );
 """
 
 def get_conn():
-    return sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = Row        
+    return conn
 
 def init_db():
     conn = get_conn()
@@ -48,4 +52,13 @@ def persist_invoice(invoice_no, payload):
                 "INSERT OR REPLACE INTO invoices (invoice_no, payload_json) VALUES (?, ?)",
                 (invoice_no, json.dumps(payload))
             )
+    conn.close()
+
+def update_pdf_path(invoice_no: str, pdf_path: str):
+    conn = get_conn()
+    with conn:
+        conn.execute(
+            "UPDATE invoices SET pdf_path=? WHERE invoice_no=?",
+            (pdf_path, invoice_no)
+        )
     conn.close()
