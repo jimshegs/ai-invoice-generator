@@ -380,86 +380,33 @@ def download_pdf():
     return response
 
 
-    # ---------- 4. Convert HTML → PDF with Playwright (PERFECT rendering) ----------
-    # try:
-    #     with sync_playwright() as p:
-    #         # Launch Chrome browser (headless)
-    #         browser = p.chromium.launch(headless=True)
-    #         page = browser.new_page()
-            
-    #         # Set content and wait for it to load
-    #         page.set_content(html, wait_until='networkidle')
-            
-    #         # Generate PDF with perfect rendering
-    #         pdf_bytes = page.pdf(
-    #             format='A4',
-    #             print_background=True,  # CRITICAL: renders backgrounds and colors
-    #             margin={
-    #                 'top': '0mm',
-    #                 'bottom': '0mm', 
-    #                 'left': '0mm',
-    #                 'right': '0mm'
-    #             },
-    #             prefer_css_page_size=True
-    #         )
-            
-    #         browser.close()
-            
-    #     # Create response
-    #     response = make_response(pdf_bytes)
-    #     response.headers['Content-Type'] = 'application/pdf'
-    #     response.headers['Content-Disposition'] = f'attachment; filename="{invoice_no}.pdf"'
-    #     return response
-        
-    # except Exception as e:
-    #     print(f"Playwright error: {e}")
-    #     return f"Error generating PDF: {str(e)}", 500
-
-# @app.route("/history")
-# def history():
-#     from db import get_conn
-#     conn = get_conn()
-#     rows = conn.execute(
-#         "SELECT invoice_no, created_at, json_extract(payload_json,'$.client') AS client, "
-#         "json_extract(payload_json,'$.total') AS total, pdf_path "
-#         "FROM invoices ORDER BY created_at DESC"
-#     ).fetchall()
-#     conn.close()
-#     return render_template("history.html", invoices=rows)
-
+from db import list_invoices
 
 @app.route("/history")
 def history():
-    from db import get_conn
-    conn = get_conn()
-    rows = conn.execute(
-        "SELECT invoice_no, created_at, payload_json, pdf_path "
-        "FROM invoices ORDER BY created_at DESC"
-    ).fetchall()
-    conn.close()
+    q = (request.args.get("q") or "").strip()
+    rows = list_invoices(q if q else None)
 
     invoices = []
     for r in rows:
-        payload = json.loads(r["payload_json"]) if r["payload_json"] else {}
+        payload = json.loads(r["payload_json"] or "{}")
         client  = payload.get("client", "—")
-        # try total from payload, else compute
-        total = payload.get("total")
-        if total is None:
-            items = payload.get("line_items", [])
-            subtotal = sum(i["quantity"] * i["unit_price"] for i in items)
-            tax_rate = float(payload.get("tax_rate", 0))
-            total = subtotal * (1 + tax_rate)
-        invoices.append(
-            {
-                "invoice_no":  r["invoice_no"],
-                "date":        r["created_at"][:10],
-                "client":      client,
-                "total":       total,
-                "pdf_path":    r["pdf_path"],
-            }
-        )
+        items   = payload.get("line_items", [])
+        tax_rate = float(payload.get("tax_rate", 0))
+        subtotal = sum(i.get("quantity", 0) * i.get("unit_price", 0) for i in items)
+        total_amt = payload.get("total")
+        if total_amt is None:
+            total_amt = subtotal * (1 + tax_rate)
+        invoices.append({
+            "invoice_no":  r["invoice_no"],
+            "date":        r["created_at"][:10],
+            "client":      client,
+            "total":       total_amt,
+            "currency_symbol": payload.get("currency_symbol", "£"),
+            "pdf_path":    r["pdf_path"],
+        })
 
-    return render_template("history.html", invoices=invoices)
+    return render_template("history.html", invoices=invoices, q=q)
 
 @app.errorhandler(Exception)
 def handle_error(err):

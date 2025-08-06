@@ -11,7 +11,16 @@
 {% block content %}
 <div class="page-bg">          {# NEW: purple gradient wrapper #}
   <div class="card history-card">
-    <h1 class="title">Past Invoices</h1>
+    <!-- <h1 class="title">Past Invoices</h1> -->
+    <div class="history-toolbar">
+        <h1 class="title">Past Invoices</h1>
+        <form class="history-search" method="get" action="{{ url_for('history') }}">
+            <input type="text" name="q" class="search-input"
+                placeholder="Search by invoice # or client…" value="{{ q }}">
+            <button class="search-button" id="search-button" type="submit">Search</button>
+        </form>
+    </div>
+
 
     {% if invoices %}
       <table class="table history-table">

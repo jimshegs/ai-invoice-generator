@@ -3,6 +3,8 @@ import sqlite3, json
 from sqlite3 import Row
 from pathlib import Path
 from datetime import datetime
+from typing import Optional, List, Tuple
+
 
 DB_PATH = Path("invoice_data.sqlite")
 
@@ -62,3 +64,22 @@ def update_pdf_path(invoice_no: str, pdf_path: str):
             (pdf_path, invoice_no)
         )
     conn.close()
+
+def list_invoices(search: Optional[str]) -> List[sqlite3.Row]:
+    conn = get_conn()
+    params = []
+    where = ""
+    if search:
+        where = "WHERE invoice_no LIKE ? OR LOWER(json_extract(payload_json,'$.client')) LIKE ?"
+        like = f"%{search}%"
+        params += [like, like.lower()]
+    rows = conn.execute(
+        f"""SELECT invoice_no, created_at, payload_json, pdf_path
+            FROM invoices
+            {where}
+            ORDER BY created_at DESC""",
+        params
+    ).fetchall()
+    conn.close()
+    return rows
+
