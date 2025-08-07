@@ -83,3 +83,18 @@ def list_invoices(search: Optional[str]) -> List[sqlite3.Row]:
     conn.close()
     return rows
 
+def get_invoice(invoice_no):
+    conn = get_conn()
+    row = conn.execute(
+        "SELECT invoice_no, created_at, payload_json, pdf_path FROM invoices WHERE invoice_no=?",
+        (invoice_no,),
+    ).fetchone()
+    conn.close()
+    return row
+
+def delete_invoice(invoice_no):
+    conn = get_conn()
+    with conn:
+        conn.execute("DELETE FROM invoices WHERE invoice_no=?", (invoice_no,))
+    conn.close()
+

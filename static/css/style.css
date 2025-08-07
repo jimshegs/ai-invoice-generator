@@ -762,3 +762,28 @@ html {
   box-shadow:0 1px 2px rgba(0,0,0,.1);
   transition:background .15s, transform .1s;
 }
+
+/* Action-cell layout: buttons centered vertically */
+.history-table .actions-cell {
+  display: flex;              /* lay them out in a row */
+  align-items: center;        /* vertical centering */
+  gap: 0.6rem;                /* space between ⬇︎ and Delete */
+  justify-content: center;       /* optional: centre within cell horizontally */
+}
+
+.btn-danger {
+  display: inline-block;
+  padding: 0.45rem 0.7rem;
+  border-radius: 8px;
+  margin-top: 0.2rem;
+  background: #c0353a;
+  color: #fff;
+  border: none;
+  cursor: pointer;
+  transition: background .2s;
+}
+.btn-danger:hover { background: #db4046; }
+
+
+     
+

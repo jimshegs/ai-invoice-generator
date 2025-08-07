@@ -9,7 +9,7 @@
 <body>
 
 {% block content %}
-<div class="page-bg">          {# NEW: purple gradient wrapper #}
+<div class="page-bg">          
   <div class="card history-card">
     <!-- <h1 class="title">Past Invoices</h1> -->
     <div class="history-toolbar">
@@ -40,13 +40,14 @@
             <td>{{ inv.date }}</td>
             <td>{{ inv.client }}</td>
             <td>{{ '%.2f'|format(inv.total) }}</td>
-            <td>
-              {% if inv.pdf_path %}
-                <a class="btn-download"
-                   href="{{ url_for('static', filename=inv.pdf_path) }}"
-                   target="_blank">⬇︎</a>
-              {% endif %}
+            <td class="actions-cell">
+                {% if inv.pdf_path %}
+                    <a class="btn-download" title="Download PDF"
+                    href="{{ url_for('static', filename=inv.pdf_path) }}" target="_blank">⬇︎</a>
+                {% endif %}
+                <button class="btn-danger delete-btn" type="button" data-id="{{ inv.invoice_no }}">Delete</button>
             </td>
+
           </tr>
           {% endfor %}
         </tbody>
@@ -64,3 +65,32 @@
 
 </body>
 </html>
+
+<script>
+document.addEventListener('click', async (e) => {
+  if (!e.target.classList.contains('delete-btn')) return;
+
+  const id = e.target.dataset.id;
+  if (!confirm(`Delete invoice ${id}? This cannot be undone.`)) return;
+
+  try {
+    const res = await fetch(`/history/delete/${encodeURIComponent(id)}`, {
+      method: 'POST',
+      headers: { 'Accept': 'application/json' }
+    });
+    const body = await res.json();
+    if (!res.ok || !body.ok) throw new Error(body.error || 'Delete failed');
+
+    // Remove the row from the table
+    const row = document.querySelector(`tr[data-invoice="${CSS.escape(id)}"]`);
+    if (row) row.remove();
+
+    // If table is empty, refresh to show the "No invoices yet" message/pager state
+    if (!document.querySelector('#historyTbody tr')) {
+      window.location.reload();
+    }
+  } catch (err) {
+    alert(err.message);
+  }
+});
+</script>

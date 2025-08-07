@@ -408,6 +408,29 @@ def history():
 
     return render_template("history.html", invoices=invoices, q=q)
 
+from db import get_invoice, delete_invoice
+
+@app.post("/history/delete/<invoice_no>")
+def history_delete(invoice_no):
+    row = get_invoice(invoice_no)
+    if not row:
+        return jsonify({"ok": False, "error": "Not found"}), 404
+
+    # Remove the PDF file if it exists
+    pdf_path = row["pdf_path"]
+    if pdf_path:
+        abs_path = os.path.join(app.static_folder, pdf_path)
+        try:
+            if os.path.exists(abs_path):
+                os.remove(abs_path)
+        except Exception:
+            app.logger.exception("Failed to remove PDF %s", abs_path)
+            # We still proceed to delete the DB row to avoid a ‘ghost’ entry
+
+    delete_invoice(invoice_no)
+    return jsonify({"ok": True})
+
+
 @app.errorhandler(Exception)
 def handle_error(err):
     logger.exception("Unhandled error")          # stacktrace to log
