@@ -65,23 +65,55 @@ def update_pdf_path(invoice_no: str, pdf_path: str):
         )
     conn.close()
 
-def list_invoices(search: Optional[str]) -> List[sqlite3.Row]:
+# def list_invoices(search: Optional[str]) -> List[sqlite3.Row]:
+#     conn = get_conn()
+#     params = []
+#     where = ""
+#     if search:
+#         where = "WHERE invoice_no LIKE ? OR LOWER(json_extract(payload_json,'$.client')) LIKE ?"
+#         like = f"%{search}%"
+#         params += [like, like.lower()]
+#     rows = conn.execute(
+#         f"""SELECT invoice_no, created_at, payload_json, pdf_path
+#             FROM invoices
+#             {where}
+#             ORDER BY created_at DESC""",
+#         params
+#     ).fetchall()
+#     conn.close()
+#     return rows
+
+
+def list_invoices(search: Optional[str], page: int, per_page: int
+                  ) -> Tuple[List[sqlite3.Row], int]:
+    """Return (rows, total_count) for the given page (1-based)."""
     conn = get_conn()
     params = []
     where = ""
     if search:
-        where = "WHERE invoice_no LIKE ? OR LOWER(json_extract(payload_json,'$.client')) LIKE ?"
+        where = (
+            "WHERE invoice_no LIKE ? "
+            "OR LOWER(json_extract(payload_json,'$.client')) LIKE ?"
+        )
         like = f"%{search}%"
         params += [like, like.lower()]
+
+    # 1) total count
+    total = conn.execute(f"SELECT COUNT(*) FROM invoices {where}", params).fetchone()[0]
+
+    # 2) paginated rows
+    offset = (page - 1) * per_page
     rows = conn.execute(
         f"""SELECT invoice_no, created_at, payload_json, pdf_path
             FROM invoices
             {where}
-            ORDER BY created_at DESC""",
-        params
+            ORDER BY created_at DESC
+            LIMIT ? OFFSET ?""",
+        params + [per_page, offset],
     ).fetchall()
+
     conn.close()
-    return rows
+    return rows, total
 
 def get_invoice(invoice_no):
     conn = get_conn()

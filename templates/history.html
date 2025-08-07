@@ -52,6 +52,21 @@
           {% endfor %}
         </tbody>
       </table>
+      <div class="history-pagination">
+        {% if has_prev %}
+        <a class="btn-secondary" href="{{ url_for('history', page=page-1, q=q) }}">← Prev</a>
+        {% else %}
+        <span class="btn-secondary disabled">← Prev</span>
+        {% endif %}
+
+        <span class="page-indicator">Page {{ page }} of {{ total_pages }}</span>
+
+        {% if has_next %}
+        <a class="btn-secondary" href="{{ url_for('history', page=page+1, q=q) }}">Next →</a>
+        {% else %}
+        <span class="btn-secondary disabled">Next →</span>
+        {% endif %}
+    </div>
     {% else %}
       <p>No invoices yet.</p>
     {% endif %}

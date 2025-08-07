@@ -385,7 +385,10 @@ from db import list_invoices
 @app.route("/history")
 def history():
     q = (request.args.get("q") or "").strip()
-    rows = list_invoices(q if q else None)
+    page = max(int(request.args.get("page", 1) or 1), 1)
+    per_page = 10
+
+    rows, total = list_invoices(q if q else None, page, per_page)
 
     invoices = []
     for r in rows:
@@ -394,9 +397,8 @@ def history():
         items   = payload.get("line_items", [])
         tax_rate = float(payload.get("tax_rate", 0))
         subtotal = sum(i.get("quantity", 0) * i.get("unit_price", 0) for i in items)
-        total_amt = payload.get("total")
-        if total_amt is None:
-            total_amt = subtotal * (1 + tax_rate)
+        total_amt = payload.get("total") or subtotal * (1 + tax_rate)
+
         invoices.append({
             "invoice_no":  r["invoice_no"],
             "date":        r["created_at"][:10],
@@ -406,7 +408,43 @@ def history():
             "pdf_path":    r["pdf_path"],
         })
 
-    return render_template("history.html", invoices=invoices, q=q)
+    total_pages = max((total + per_page - 1) // per_page, 1)
+    return render_template(
+        "history.html",
+        invoices=invoices,
+        q=q,
+        page=page,
+        total_pages=total_pages,
+        has_prev=page > 1,
+        has_next=page < total_pages,
+    )
+
+
+# @app.route("/history")
+# def history():
+#     q = (request.args.get("q") or "").strip()
+#     rows = list_invoices(q if q else None)
+
+#     invoices = []
+#     for r in rows:
+#         payload = json.loads(r["payload_json"] or "{}")
+#         client  = payload.get("client", "—")
+#         items   = payload.get("line_items", [])
+#         tax_rate = float(payload.get("tax_rate", 0))
+#         subtotal = sum(i.get("quantity", 0) * i.get("unit_price", 0) for i in items)
+#         total_amt = payload.get("total")
+#         if total_amt is None:
+#             total_amt = subtotal * (1 + tax_rate)
+#         invoices.append({
+#             "invoice_no":  r["invoice_no"],
+#             "date":        r["created_at"][:10],
+#             "client":      client,
+#             "total":       total_amt,
+#             "currency_symbol": payload.get("currency_symbol", "£"),
+#             "pdf_path":    r["pdf_path"],
+#         })
+
+#     return render_template("history.html", invoices=invoices, q=q)
 
 from db import get_invoice, delete_invoice
 
