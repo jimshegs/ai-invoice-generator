@@ -294,6 +294,15 @@ def parse_invoice():
         logger.exception("Parse failed")
         return jsonify({'error': 'Server error'}), 500
 
+@app.get("/admin/cache/parse/info")
+def parse_cache_info():
+    info = ai_parse_invoice_cached.cache_info()
+    return jsonify({
+        "hits": info.hits,
+        "misses": info.misses,
+        "currsize": info.currsize
+    })
+
 @app.post('/admin/cache/parse/clear')
 def clear_parse_cache():
     ai_parse_invoice_cached.cache_clear()
