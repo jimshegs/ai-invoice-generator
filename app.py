@@ -3,7 +3,6 @@ import re
 from datetime import datetime
 from dateutil import parser
 import json
-#from xhtml2pdf import pisa
 from playwright.sync_api import sync_playwright
 from io import BytesIO
 import openai
@@ -12,7 +11,9 @@ from dotenv import load_dotenv
 from werkzeug.utils import secure_filename
 from logging_config import LOGGING
 import logging.config
-
+import copy
+from functools import lru_cache
+import re as _re
 
 # Load environment variables
 load_dotenv()
@@ -38,6 +39,30 @@ if not OPENAI_API_KEY:
     raise RuntimeError("Set OPENAI_API_KEY in .env")
 
 openai.api_key = OPENAI_API_KEY
+
+# ---------- LRU cache for parse ----------
+
+SCHEMA_VERSION = "2025-08-08-v1"   # bump this when you change the tool schema/prompt
+
+def _normalize_prompt(s: str) -> str:
+    """Trim & collapse whitespace so near-identical inputs share a cache key."""
+    return _re.sub(r"\s+", " ", (s or "").strip())
+
+def _ai_parse_invoice_uncached(prompt: str, schema_version: str) -> dict:
+    """
+    Uncached call: delegates to your existing AI parser that uses OpenAI tool-calling
+    and falls back to regex. Keep all logic in AIInvoiceParser.parse().
+    """
+    return parser_instance.parse(prompt)
+
+@lru_cache(maxsize=128)
+def ai_parse_invoice_cached(prompt: str, schema_version: str) -> dict:
+    """
+    Cached wrapper. DO NOT mutate the returned dict elsewhere. In the route, we
+    deep-copy before returning to avoid accidental mutation of the cached object.
+    """
+    return _ai_parse_invoice_uncached(prompt, schema_version)
+
 
 class AIInvoiceParser:
     def __init__(self):
@@ -244,14 +269,46 @@ def index():
 
 @app.route('/parse', methods=['POST'])
 def parse_invoice():
-    data = request.get_json()
-    text = data.get('text', '')
+    data = request.get_json(force=True) or {}
+    raw_text = data.get('text', '')
+    prompt = _normalize_prompt(raw_text)
+
+    if not prompt:
+        return jsonify({'error': 'Please provide invoice description'}), 400
+
+    try:
+        before = ai_parse_invoice_cached.cache_info()  # has .hits, .misses, .currsize
+        parsed = ai_parse_invoice_cached(prompt, SCHEMA_VERSION)
+        after  = ai_parse_invoice_cached.cache_info()
+
+        if after.hits > before.hits:
+            logger.info("🧠 Parse cache HIT (len=%d, cache=%d)", len(prompt), after.currsize)
+        else:
+            logger.info("🧠 Parse cache MISS (len=%d, cache=%d)", len(prompt), after.currsize)
+
+        # IMPORTANT: deep-copy so downstream code can’t mutate the cached object
+        safe = copy.deepcopy(parsed)
+        return jsonify(safe), 200
+
+    except Exception:
+        logger.exception("Parse failed")
+        return jsonify({'error': 'Server error'}), 500
+
+@app.post('/admin/cache/parse/clear')
+def clear_parse_cache():
+    ai_parse_invoice_cached.cache_clear()
+    return jsonify({"ok": True, "message": "parse cache cleared"})
+
+# @app.route('/parse', methods=['POST'])
+# def parse_invoice():
+#     data = request.get_json()
+#     text = data.get('text', '')
     
-    if not text.strip():
-        return jsonify({'error': 'Please provide invoice description'})
+#     if not text.strip():
+#         return jsonify({'error': 'Please provide invoice description'})
     
-    parsed_data = parser_instance.parse(text)
-    return jsonify(parsed_data)
+#     parsed_data = parser_instance.parse(text)
+#     return jsonify(parsed_data)
 
 @app.route('/generate', methods=['POST'])
 def generate_invoice():
