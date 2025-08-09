@@ -30,10 +30,17 @@ def test_parse_route_uses_lru_cache(client, monkeypatch):
     assert res2.status_code == 200
     assert calls["n"] == 1
 
+    # Avoid tripping "2 per second rate limit" by waiting a bit
+    import time
+    time.sleep(1.1)
+
     # 3) Whitespace-only variant → still HIT (route normalizes the prompt)
     res3 = client.post("/parse", json={"text": "  Invoice   ACME  for   design   work  \n"})
     assert res3.status_code == 200
     assert calls["n"] == 1
+
+    # Optional: sleep before the version bump call as well
+    time.sleep(1.1)
 
     # 4) Version bump → MISS (forces new key)
     monkeypatch.setattr(appmod, "SCHEMA_VERSION", "test-v2", raising=False)

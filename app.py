@@ -14,6 +14,8 @@ import logging.config
 import copy
 from functools import lru_cache
 import re as _re
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 
 # Load environment variables
 load_dotenv()
@@ -63,7 +65,28 @@ def ai_parse_invoice_cached(prompt: str, schema_version: str) -> dict:
     """
     return _ai_parse_invoice_uncached(prompt, schema_version)
 
+# --- Rate limiting setup ----------------------------------------
+def real_ip():
+    """
+    Identify the client. For local dev, request.remote_addr is fine.
+    If you deploy behind a proxy, consider ProxyFix or honor X-Forwarded-For.
+    """
+    # If you later add ProxyFix, get_remote_address will pick it up.
+    return get_remote_address()
 
+# Choose storage: memory for dev; Redis for prod.
+RATELIMIT_STORAGE_URL = os.getenv("RATELIMIT_STORAGE_URL", "memory://")
+
+limiter = Limiter(
+    key_func=real_ip,
+    storage_uri=RATELIMIT_STORAGE_URL,
+    strategy="moving-window",    # smoother than fixed windows
+    app=app,                     # attach to your existing global app
+    default_limits=[],           # we'll decorate just the routes we want
+)
+
+
+# ---------- AI Invoice Parser with OpenAI function calling ----------
 class AIInvoiceParser:
     def __init__(self):
         # Keep the regex parser as fallback
@@ -268,6 +291,8 @@ def index():
     return render_template('index.html')
 
 @app.route('/parse', methods=['POST'])
+@limiter.limit("2 per second; 10 per minute")      # per-IP burst + steady
+@limiter.limit("1000 per day", key_func=lambda: "global")  # optional global cap
 def parse_invoice():
     data = request.get_json(force=True) or {}
     raw_text = data.get('text', '')
@@ -307,17 +332,6 @@ def parse_cache_info():
 def clear_parse_cache():
     ai_parse_invoice_cached.cache_clear()
     return jsonify({"ok": True, "message": "parse cache cleared"})
-
-# @app.route('/parse', methods=['POST'])
-# def parse_invoice():
-#     data = request.get_json()
-#     text = data.get('text', '')
-    
-#     if not text.strip():
-#         return jsonify({'error': 'Please provide invoice description'})
-    
-#     parsed_data = parser_instance.parse(text)
-#     return jsonify(parsed_data)
 
 @app.route('/generate', methods=['POST'])
 def generate_invoice():
@@ -485,33 +499,6 @@ def history():
         has_next=page < total_pages,
     )
 
-
-# @app.route("/history")
-# def history():
-#     q = (request.args.get("q") or "").strip()
-#     rows = list_invoices(q if q else None)
-
-#     invoices = []
-#     for r in rows:
-#         payload = json.loads(r["payload_json"] or "{}")
-#         client  = payload.get("client", "—")
-#         items   = payload.get("line_items", [])
-#         tax_rate = float(payload.get("tax_rate", 0))
-#         subtotal = sum(i.get("quantity", 0) * i.get("unit_price", 0) for i in items)
-#         total_amt = payload.get("total")
-#         if total_amt is None:
-#             total_amt = subtotal * (1 + tax_rate)
-#         invoices.append({
-#             "invoice_no":  r["invoice_no"],
-#             "date":        r["created_at"][:10],
-#             "client":      client,
-#             "total":       total_amt,
-#             "currency_symbol": payload.get("currency_symbol", "£"),
-#             "pdf_path":    r["pdf_path"],
-#         })
-
-#     return render_template("history.html", invoices=invoices, q=q)
-
 from db import get_invoice, delete_invoice
 
 @app.post("/history/delete/<invoice_no>")
@@ -543,6 +530,24 @@ def handle_error(err):
         return jsonify({"error": "Server error, please try again"}), 500
     # Fallback HTML
     return render_template("error.html", message="Unexpected error"), 500
+
+@app.errorhandler(429)
+def ratelimit_handler(e):
+    # Be conservative: everything we include must be a plain string/number
+    limit_str = None
+    try:
+        # This prints nicely, e.g. "2 per 1 second"
+        if hasattr(e, "limit") and hasattr(e.limit, "limit"):
+            limit_str = str(e.limit.limit)
+    except Exception:
+        limit_str = None
+
+    return jsonify({
+        "error":  "Too many requests",
+        "detail": str(getattr(e, "description", "Rate limit exceeded")),
+        "limit":  limit_str,   # string or None
+    }), 429
+
 
 
 if __name__ == '__main__':
