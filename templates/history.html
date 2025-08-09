@@ -33,9 +33,9 @@
             <th style="width:100px">PDF</th>
           </tr>
         </thead>
-        <tbody>
+        <tbody id="historyTbody">
           {% for inv in invoices %}
-          <tr>
+          <tr data-invoice="{{ inv.invoice_no }}">
             <td>{{ inv.invoice_no }}</td>
             <td>{{ inv.date }}</td>
             <td>{{ inv.client }}</td>

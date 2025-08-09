@@ -35,6 +35,13 @@ UPLOAD_FOLDER = os.path.join(app.static_folder, 'uploads')
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
+# Allow only common image extensions for uploaded logos.
+ALLOWED_LOGO_EXTENSIONS = {'.png', '.jpg', '.jpeg', '.webp'}
+
+# Cap request size to 2 MB to avoid giant uploads (Flask will 413 if exceeded).
+app.config['MAX_CONTENT_LENGTH'] = 2 * 1024 * 1024
+
+
 # Configure OpenAI
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
 if not OPENAI_API_KEY:
@@ -173,7 +180,6 @@ class AIInvoiceParser:
             
             if message.tool_calls and len(message.tool_calls) > 0:
                 function_call = message.tool_calls[0]
-                function_args = json.loads(function_call.function.arguments)
 
                 function_args = json.loads(function_call.function.arguments)
 
@@ -292,7 +298,7 @@ def index():
 
 @app.route('/parse', methods=['POST'])
 @limiter.limit("2 per second; 10 per minute")      # per-IP burst + steady
-@limiter.limit("1000 per day", key_func=lambda: "global")  # optional global cap
+@limiter.limit("1000 per day", key_func=lambda: "global")  
 def parse_invoice():
     data = request.get_json(force=True) or {}
     raw_text = data.get('text', '')
@@ -334,6 +340,7 @@ def clear_parse_cache():
     return jsonify({"ok": True, "message": "parse cache cleared"})
 
 @app.route('/generate', methods=['POST'])
+@limiter.limit("20 per minute")
 def generate_invoice():
     # 1 -- grab payload & optional logo
     if request.content_type.startswith('multipart/form-data'):
@@ -351,8 +358,18 @@ def generate_invoice():
         payload['invoice_no'] = invoice_no
 
     logo_url = None
+    # if file and file.filename:
+    #     fname = secure_filename(file.filename)
+    #     save_path = os.path.join(app.config['UPLOAD_FOLDER'], fname)
+    #     file.save(save_path)
+    #     logo_url = url_for('static', filename=f'uploads/{fname}', _external=True)
+
     if file and file.filename:
         fname = secure_filename(file.filename)
+        ext = os.path.splitext(fname)[1].lower()
+        if ext not in ALLOWED_LOGO_EXTENSIONS:
+            return make_response("Only PNG, JPG, JPEG, or WEBP logo files are allowed.", 400)
+
         save_path = os.path.join(app.config['UPLOAD_FOLDER'], fname)
         file.save(save_path)
         logo_url = url_for('static', filename=f'uploads/{fname}', _external=True)
@@ -384,6 +401,7 @@ def generate_invoice():
 
 
 @app.route('/download-pdf', methods=['POST'])
+@limiter.limit("30 per minute")
 def download_pdf():
     data = request.get_json(force=True) or {}
 
@@ -502,6 +520,7 @@ def history():
 from db import get_invoice, delete_invoice
 
 @app.post("/history/delete/<invoice_no>")
+@limiter.limit("30 per minute")
 def history_delete(invoice_no):
     row = get_invoice(invoice_no)
     if not row:
