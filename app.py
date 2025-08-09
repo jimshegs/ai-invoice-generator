@@ -30,7 +30,7 @@ from pdf_utils import html_to_pdf
 from db import init_db, next_invoice_no, persist_invoice
 init_db()
 
-# right after your Flask app is created (or in a config section):
+# Ensure the static uploads directory exists
 UPLOAD_FOLDER = os.path.join(app.static_folder, 'uploads')
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
@@ -56,6 +56,82 @@ SCHEMA_VERSION = "2025-08-08-v1"   # bump this when you change the tool schema/p
 def _normalize_prompt(s: str) -> str:
     """Trim & collapse whitespace so near-identical inputs share a cache key."""
     return _re.sub(r"\s+", " ", (s or "").strip())
+
+def _to_float(x, default=0.0, *, minval=None, maxval=None):
+    try:
+        v = float(x)
+    except (TypeError, ValueError):
+        v = default
+    if minval is not None and v < minval:
+        v = minval
+    if maxval is not None and v > maxval:
+        v = maxval
+    return v
+
+def _norm_date(s, default_iso=None):
+    """
+    Accepts many formats; returns YYYY-MM-DD or the provided default.
+    Uses the already-imported `from dateutil import parser` module.
+    """
+    if not s:
+        return default_iso
+    try:
+        return parser.parse(str(s)).date().isoformat()
+    except Exception:
+        return default_iso
+
+def _normalize_invoice_payload(data: dict) -> dict:
+    """
+    Normalize + lightly validate the payload shape expected by your templates/routes.
+    - Keeps your current field names.
+    - Leaves unknown fields alone.
+    - Does NOT raise on empty line_items (subtotal just becomes 0.00).
+    """
+    today = datetime.now().date().isoformat()
+
+    out = {}
+    out['client']          = (data.get('client') or 'Client').strip()
+    out['client_address']  = (data.get('client_address') or '').strip()
+    out['sender']          = (data.get('sender') or 'Your Business').strip()
+    out['sender_address']  = (data.get('sender_address') or '').strip()
+    out['payment_terms']   = (data.get('payment_terms') or '').strip()
+
+    # Invoice number: preserve whatever you've already decided upstream
+    inv_no = (data.get('invoice_no') or '').strip()
+    if inv_no:
+        out['invoice_no'] = inv_no
+
+    # Dates → ISO; keep due_date blank if unparsable/missing
+    out['invoice_date'] = _norm_date(data.get('invoice_date'), default_iso=today)
+    out['due_date']     = _norm_date(data.get('due_date'), default_iso='')
+
+    # Currency symbol: keep short & simple (your templates expect symbol, not code)
+    cur = (data.get('currency_symbol') or '£')
+    out['currency_symbol'] = str(cur)[:4]
+
+    # Tax rate: accept 0–1 or 0–100; clamp to 0..1
+    tr = _to_float(data.get('tax_rate'), 0.0, minval=0.0)
+    if tr > 1.0 and tr <= 100.0:
+        tr = tr / 100.0
+    out['tax_rate'] = min(tr, 1.0)
+
+    # Amount paid: no negatives
+    out['amount_paid'] = _to_float(data.get('amount_paid'), 0.0, minval=0.0)
+
+    # Line items: description (trim), numbers coerced & clamped ≥ 0
+    items_in = data.get('line_items') or []
+    items_out = []
+    for it in items_in:
+        desc = (it.get('description') or '').strip()
+        if not desc:
+            continue
+        qty   = _to_float(it.get('quantity'),   0.0, minval=0.0)
+        price = _to_float(it.get('unit_price'), 0.0, minval=0.0)
+        items_out.append({'description': desc, 'quantity': qty, 'unit_price': price})
+    out['line_items'] = items_out
+
+    return {**data, **out}  # keep any extra keys the UI added, but prefer normalized
+
 
 def _ai_parse_invoice_uncached(prompt: str, schema_version: str) -> dict:
     """
@@ -374,6 +450,9 @@ def generate_invoice():
         file.save(save_path)
         logo_url = url_for('static', filename=f'uploads/{fname}', _external=True)
 
+    # Normalize payload to ensure types and sane values
+    payload = _normalize_invoice_payload(payload)
+
     # 2 -- compute totals (same as before)
     items = payload.get('line_items', [])
     tax_rate  = float(payload.get('tax_rate', 0.0))
@@ -404,6 +483,7 @@ def generate_invoice():
 @limiter.limit("30 per minute")
 def download_pdf():
     data = request.get_json(force=True) or {}
+    data = _normalize_invoice_payload(data)
 
     # ---------- 1. Header / parties ----------
     invoice_no  = data.get('invoice_no') or f"INV-{datetime.now():%Y%m%d-%H%M}"
@@ -424,7 +504,6 @@ def download_pdf():
     subtotal   = sum(i['quantity'] * i['unit_price'] for i in items)
     tax_amount = subtotal * tax_rate
     total      = subtotal + tax_amount
-    
     balance_due = total - amount_paid
 
     # ---------- 3. Render SAME template as HTML preview ----------
