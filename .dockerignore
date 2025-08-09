@@ -1,0 +1,14 @@
+# .dockerignore
+.git
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.venv
+venv/
+.env
+*.env
+dist/
+build/
+node_modules/
+static/invoices/*.pdf
