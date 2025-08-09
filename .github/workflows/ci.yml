@@ -17,7 +17,7 @@ jobs:
       # 2) Set up Python (pick the version you run locally)
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.9.6"
+          python-version: "3.11"
 
       # 3) Speed up installs by caching pip’s download dir
       - name: Cache pip
