@@ -1,4 +1,4 @@
-from flask import Flask, url_for, render_template, request, jsonify, make_response
+from flask import Flask, url_for, render_template, request, jsonify, make_response, session, redirect
 import re
 from datetime import datetime
 from dateutil import parser
@@ -6,16 +6,18 @@ import json
 from playwright.sync_api import sync_playwright
 from io import BytesIO
 import openai
-import os
+import os, secrets
 from dotenv import load_dotenv
 from werkzeug.utils import secure_filename
 from logging_config import LOGGING
 import logging.config
 import copy
-from functools import lru_cache
+from functools import lru_cache, wraps
 import re as _re
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
+from werkzeug.security import check_password_hash
+
 
 # Load environment variables
 load_dotenv()
@@ -24,6 +26,13 @@ logging.config.dictConfig(LOGGING)
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
+
+app.secret_key = os.getenv("SECRET_KEY", "dev-secret")  # fallback is optional but good
+
+# Ensure SECRET_KEY is set for sessions (already in your CI; keep here for safety)
+if not os.getenv("SECRET_KEY"):
+    # In prod, set this via env. This fallback is only for dev.
+    app.config["SECRET_KEY"] = app.config.get("SECRET_KEY") or secrets.token_hex(16)
 
 from pdf_utils import html_to_pdf
 
@@ -48,6 +57,45 @@ if not OPENAI_API_KEY:
     raise RuntimeError("Set OPENAI_API_KEY in .env")
 
 openai.api_key = OPENAI_API_KEY
+
+# ---- Auth/CSRF toggles: enabled in real runs, disabled in tests ----
+_IS_TESTING = (os.getenv("FLASK_ENV") == "testing") or bool(os.getenv("PYTEST_CURRENT_TEST"))
+ENFORCE_AUTH = os.getenv("AUTH_ENABLED", "1") != "0" and not _IS_TESTING
+ENFORCE_CSRF = os.getenv("CSRF_ENABLED", "1") != "0" and not _IS_TESTING
+
+app.logger.info("Auth enabled=%s | CSRF enabled=%s", ENFORCE_AUTH, ENFORCE_CSRF)
+
+
+def _current_user():
+    return session.get("user")
+
+def login_required(view):
+    @wraps(view)
+    def _wrap(*args, **kwargs):
+        if not ENFORCE_AUTH:
+            return view(*args, **kwargs)
+        if not _current_user():
+            nxt = request.path
+            return redirect(url_for("login", next=nxt))
+        return view(*args, **kwargs)
+    return _wrap
+
+def require_csrf(view):
+    @wraps(view)
+    def _wrap(*args, **kwargs):
+        if not ENFORCE_CSRF:
+            return view(*args, **kwargs)
+        token = request.headers.get("X-CSRF-Token") or request.form.get("csrf_token") or request.args.get("csrf_token")
+        if not token or token != session.get("csrf_token"):
+            return jsonify({"error": "CSRF token missing/invalid"}), 400
+        return view(*args, **kwargs)
+    return _wrap
+
+@app.context_processor
+def inject_csrf():
+    # Lets templates expose a token for JS to read; empty when disabled.
+    return {"CSRF_TOKEN": session.get("csrf_token", "")}
+
 
 # ---------- LRU cache for parse ----------
 
@@ -560,6 +608,7 @@ def download_pdf():
 from db import list_invoices
 
 @app.route("/history")
+@login_required
 def history():
     q = (request.args.get("q") or "").strip()
     page = max(int(request.args.get("page", 1) or 1), 1)
@@ -599,6 +648,8 @@ def history():
 from db import get_invoice, delete_invoice
 
 @app.post("/history/delete/<invoice_no>")
+@login_required
+@require_csrf
 @limiter.limit("30 per minute")
 def history_delete(invoice_no):
     row = get_invoice(invoice_no)
@@ -619,15 +670,65 @@ def history_delete(invoice_no):
     delete_invoice(invoice_no)
     return jsonify({"ok": True})
 
+@app.get("/login")
+def login():
+    if _current_user():
+        return redirect(url_for("history"))
+    return render_template("login.html", error=None)
+
+@app.post("/login")
+def do_login():
+    username = (request.form.get("username") or "").strip()
+    password = request.form.get("password") or ""
+
+    expected_user = os.getenv("ADMIN_USER", "admin")
+    pw_hash = os.getenv("ADMIN_PASSWORD_HASH")
+    pw_plain = os.getenv("ADMIN_PASSWORD")
+
+    ok = False
+    if pw_hash:
+        from werkzeug.security import check_password_hash
+        ok = (username == expected_user and check_password_hash(pw_hash, password))
+    elif pw_plain:
+        ok = (username == expected_user and pw_plain == password)
+
+    if not ok:
+        # Avoid leaking which part failed
+        return render_template("login.html", error="Invalid credentials"), 401
+
+    session["user"] = expected_user
+    session["csrf_token"] = secrets.token_urlsafe(32)
+    nxt = request.args.get("next") or url_for("history")
+    return redirect(nxt)
+
+@app.post("/logout")
+@login_required
+@require_csrf
+def logout():
+    session.clear()
+    return redirect(url_for("login"))
+
+
+
+# @app.errorhandler(Exception)
+# def handle_error(err):
+#     logger.exception("Unhandled error")          # stacktrace to log
+#     # Browser requests (XHR / fetch) expect JSON
+#     if request.accept_mimetypes.accept_json:
+#         return jsonify({"error": "Server error, please try again"}), 500
+#     # Fallback HTML
+#     return render_template("error.html", message="Unexpected error"), 500
 
 @app.errorhandler(Exception)
 def handle_error(err):
-    logger.exception("Unhandled error")          # stacktrace to log
-    # Browser requests (XHR / fetch) expect JSON
+    import traceback
+    traceback.print_exc()
+    app.logger.exception("Unhandled error")
+
     if request.accept_mimetypes.accept_json:
         return jsonify({"error": "Server error, please try again"}), 500
-    # Fallback HTML
     return render_template("error.html", message="Unexpected error"), 500
+
 
 @app.errorhandler(429)
 def ratelimit_handler(e):

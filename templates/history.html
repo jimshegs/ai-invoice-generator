@@ -1,6 +1,11 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+  <meta name="csrf-token" content="{{ CSRF_TOKEN }}">
+  <script>
+    window.CSRF_TOKEN = "{{ CSRF_TOKEN }}";
+  </script>
+
   <meta charset="utf-8">
   <title>Invoice History</title>
   <!-- reuse global stylesheet -->
@@ -74,6 +79,12 @@
     <div class="actions">
       <a href="{{ url_for('index') }}" class="btn-secondary">← Back to new invoice</a>
     </div>
+
+    <form method="post" action="{{ url_for('logout') }}" onsubmit="this.querySelector('input[name=csrf_token]').value = window.CSRF_TOKEN;">
+      <input type="hidden" name="csrf_token" />
+      <button type="submit">Log out</button>
+    </form>
+
   </div>
 </div>
 {% endblock %}
@@ -91,7 +102,8 @@ document.addEventListener('click', async (e) => {
   try {
     const res = await fetch(`/history/delete/${encodeURIComponent(id)}`, {
       method: 'POST',
-      headers: { 'Accept': 'application/json' }
+      // headers: { 'Accept': 'application/json' }
+      headers: { 'X-CSRF-Token': window.CSRF_TOKEN }
     });
     const body = await res.json();
     if (!res.ok || !body.ok) throw new Error(body.error || 'Delete failed');
